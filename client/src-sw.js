@@ -26,15 +26,35 @@ warmStrategyCache({
 
 registerRoute(({ request }) => request.mode === 'navigate', pageCache);
 
-// TODO: Implement asset caching
-registerRoute(
-  ({ request }) => ['style', 'script', 'worker'].includes(request.destination),
-  new StaleWhileRevalidate({
-    cacheName: 'asset-cache',
-    plugins: [
-      new CacheableResponsePlugin({
-        statuses: [0, 200],
-      }),
-    ],
-  })
-);
+// Define a RegExp pattern to match asset requests
+const assetsPattern = /\.(js|css|png|jpg|jpeg|svg|woff2|woff)$/;
+
+// Define a caching strategy for asset requests
+const assetCache = new CacheFirst({
+  cacheName: 'asset-cache',
+  plugins: [
+    new CacheableResponsePlugin({
+      statuses: [0, 200],
+    }),
+    new ExpirationPlugin({
+      maxAgeSeconds: 30 * 24 * 60 * 60,
+    }),
+  ],
+});
+
+// Register a route for asset requests using the defined strategy
+registerRoute(({ request }) => assetsPattern.test(request.url), assetCache);
+
+// Define an offline fallback response
+const offlineFallbackResponse = () =>
+  new Response('You are offline.', {
+    headers: { 'Content-Type': 'text/plain' },
+  });
+
+// Use the offlineFallback recipe to return the fallback response
+offlineFallback({
+  pageFallback: '/index.html',
+  imageFallback: null,
+  // Use the previously defined offlineFallbackResponse
+  fallback: { offline: offlineFallbackResponse },
+});
